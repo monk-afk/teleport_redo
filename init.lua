@@ -21,7 +21,7 @@ end
 
 -- The following three functions sourced from minetest/builtin
 local function teleport_to_pos(name, p)
-    local lm = 31000
+    local lm = 30927
     if p.x < -lm or p.x > lm or p.y < -lm or p.y > lm
             or p.z < -lm or p.z > lm then
         return false, S("Cannot teleport out of map bounds!")
@@ -71,10 +71,14 @@ local function teleport_to_player(name, target_name)
         return false, S("Cannot get player with name ") .. target_name
     end
     local p = find_free_position_near(target:get_pos())
-    teleportee:set_pos(p)
-    play_sound(p)
-    return true, S("Teleporting @1 to @2 at position ", name, target_name) ..
-        minetest.pos_to_string(p, 1)
+    if p and minetest.is_valid_pos(p) then
+      teleportee:set_pos(p)
+      play_sound(p)
+      return true, S("Teleporting @1 to @2 at position ", name, target_name) ..
+          minetest.pos_to_string(p, 1)
+    else
+        return false, S("Cannot teleport out of map bounds!")
+    end
 end
 ------------- See LICENSE -----------------------------------------------------
 
