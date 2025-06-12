@@ -1,32 +1,26 @@
-local S = minetest.get_translator("teleport_redo")
+local S = core.get_translator("teleport_redo")
 
-local request_ttl = 60
+local request_ttl = 60  -- cooldown between receiving requests
+local message_color = "#FFA500"
 
-local request_color = "#FFA500"
-local sysmsg_color = "#FF4D00"
-
-local tpp_places = {}
-local tp_data = {}
-
-
-local function send_player(player, message)
-    minetest.chat_send_player(player, minetest.colorize(request_color, message))
-end
-
-
+-- validation and travel
 local function play_sound(sound_pos)
-  minetest.sound_play("tpr_warp", {pos = sound_pos, gain = 0.5, max_hear_distance = 10})
+  core.sound_play("tpr_warp", {pos = sound_pos, gain = 0.5, max_hear_distance = 10})
 end
 
+local function is_within_map_boundary(p)
+  local lm = 30927
+  return  p.x > -lm and p.x < lm
+      and p.y > -lm and p.y < lm
+      and p.z > -lm and p.z < lm
+end
 
--- The following three functions sourced from minetest/builtin
+-- The following three functions sourced from core.builtin
 local function teleport_to_pos(name, p)
-    local lm = 30927
-    if p.x < -lm or p.x > lm or p.y < -lm or p.y > lm
-            or p.z < -lm or p.z > lm then
-        return false, S("Cannot teleport out of map bounds!")
+    if not is_within_map_boundary(p) then
+      return false, S("Cannot teleport out of map bounds!")
     end
-    local teleportee = minetest.get_player_by_name(name)
+    local teleportee = core.get_player_by_name(name)
     if not teleportee then
         return false, S("Cannot get player with name ") .. name
     end
@@ -35,21 +29,21 @@ local function teleport_to_pos(name, p)
     end
     teleportee:set_pos(p)
     play_sound(p)
-    return true, S("Teleporting @1 to ", name) .. minetest.pos_to_string(p, 1)
+    return true, S("Teleporting @1 to ", name) .. core.pos_to_string(p, 1)
 end
 
 local function find_free_position_near(pos)
     local tries = {
-        {x=1, y=0, z=0},
-        {x=-1, y=0, z=0},
-        {x=0, y=0, z=1},
-        {x=0, y=0, z=-1},
+      vector.new( 1, 0,  0),
+      vector.new(-1, 0,  0),
+      vector.new( 0, 0,  1),
+      vector.new( 0, 0, -1),
     }
     for _, d in ipairs(tries) do
         local p = vector.add(pos, d)
-        local n = minetest.get_node_or_nil(p)
+        local n = core.get_node_or_nil(p)
         if n then
-            local def = minetest.registered_nodes[n.name]
+            local def = core.registered_nodes[n.name]
             if def and not def.walkable then
                 return p
             end
@@ -59,29 +53,30 @@ local function find_free_position_near(pos)
 end
 
 local function teleport_to_player(name, target_name)
-    local teleportee = minetest.get_player_by_name(name)
+    local teleportee = core.get_player_by_name(name)
     if not teleportee then
         return false, S("Cannot get player with name ") .. name
     end
     if teleportee:get_attach() then
         return false, S("Cannot teleport, @1 is attached to an object!", name)
     end
-    local target = minetest.get_player_by_name(target_name)
+    local target = core.get_player_by_name(target_name)
     if not target then
-        return false, S("Cannot get player with name ") .. target_name
+        return false, S("Cannot get player with name @1", target_name)
     end
-    local p = find_free_position_near(target:get_pos())
-    if p and minetest.is_valid_pos(p) then
+    local p = vector.new(find_free_position_near(target:get_pos()))
+    if p and is_within_map_boundary(p) then
       teleportee:set_pos(p)
       play_sound(p)
-      return true, S("Teleporting @1 to @2 at position ", name, target_name) ..
-          minetest.pos_to_string(p, 1)
+      return true, S("Teleporting @1 to @2 at @3 ",
+          name, target_name, core.pos_to_string(p, 1))
     else
         return false, S("Cannot teleport out of map bounds!")
     end
 end
 ------------- See LICENSE -----------------------------------------------------
 
+local tp_data = {}  -- 
 
   -- common check functions
 local function get_or_create_data(player_name)
@@ -101,11 +96,11 @@ local function get_or_create_data(player_name)
 end
 
 local function is_player_registered(player_name)
-    return player_name and minetest.player_exists(player_name)
+    return player_name and core.player_exists(player_name)
 end
 
 local function is_player_online(player_name)
-    return minetest.get_player_by_name(player_name) ~= nil
+    return core.get_player_by_name(player_name) ~= nil
 end
 
 local function has_enabled_dnd(player_tp_data)
@@ -123,8 +118,9 @@ end
 
   -- tpr/tphr functions
 
+  -- cooldown period is applied to both the sender and receiver
 local function queue_request_timeout(sender_tp_data, receiver_tp_data)
-    minetest.after(request_ttl, function(sender_tp_data, receiver_tp_data)
+    core.after(request_ttl, function(sender_tp_data, receiver_tp_data)
         if has_pending_request(sender_tp_data) then
             sender_tp_data.request_pending = false
         end
@@ -141,6 +137,12 @@ local function add_teleport_request(sender_tp_data, receiver_tp_data, target, de
     
     queue_request_timeout(sender_tp_data, receiver_tp_data)
 end
+
+
+local function send_player(player, message)
+    core.chat_send_player(player, core.colorize(message_color, message))
+end
+
 
 local function request_teleport(sender, param, destination)
     local receiver = param:match("^([^ ]+)$")
@@ -178,7 +180,7 @@ local function request_teleport(sender, param, destination)
     send_player(sender, S("Teleport request sent! It will timeout in @1 seconds.", request_ttl))
 end
 
-minetest.register_chatcommand("tpr", {
+core.register_chatcommand("tpr", {
     description = S("Request teleport to player"),
     params = S("<name>"),
     privs = {interact = true},
@@ -187,7 +189,7 @@ minetest.register_chatcommand("tpr", {
     end
 })
 
-minetest.register_chatcommand("tphr", {
+core.register_chatcommand("tphr", {
     description = S("Request a player teleport to you"),
     params = S("<name>"),
     privs = {interact = true},
@@ -220,7 +222,7 @@ local function respond_to_request(name, accept_request)
     end
 end
 
-minetest.register_chatcommand("tpy", {
+core.register_chatcommand("tpy", {
     description = S("Accept teleport requests from another player"),
     params = "",
     privs = {interact = true},
@@ -229,7 +231,7 @@ minetest.register_chatcommand("tpy", {
     end
 })
 
-minetest.register_chatcommand("tpn", {
+core.register_chatcommand("tpn", {
     description = S("Deny teleport requests from another player"),
     params = "",
     privs = {interact = true},
@@ -266,11 +268,12 @@ local function toggle_dnd(name, param)
     local player_tp_data = get_or_create_data(name)
 
     if not param then
+          -- negative check-switch, if false then true, if not false then false
         player_tp_data.do_not_disturb = not player_tp_data.do_not_disturb
         local status = player_tp_data.do_not_disturb 
                 and S("You have enabled Do Not Disturb - Teleport requests will be ignored")
                 or  S("You have disabled Do Not Disturb - Receiving teleport requests")
-        minetest.chat_send_player(name, status)
+        core.chat_send_player(name, status)
 
     elseif name == param then
       return false, S("Unable to block teleport requests from yourself.")
@@ -295,15 +298,16 @@ local function toggle_dnd(name, param)
     end
 end
 
-minetest.register_chatcommand("tpdnd", {
+core.register_chatcommand("tpdnd", {
     description = S("Block teleport requests from selected or all players"),
-    params = "< >|"..S("<name>").."|<!show>|<!clear>",
+    params = "<>|"..S("<name>").."|<!show>|<!clear>",
     privs = {interact = true},
     func = toggle_dnd
 })
 
 
   -- tpp functions
+local tpp_places = {}
 
 local function tpp_view_or_visit(name, param)
     local param = param:match("^([^ ]+)$")
@@ -329,22 +333,22 @@ local function tpp_view_or_visit(name, param)
     end
 end
 
-minetest.register_chatcommand("tpp", {
+core.register_chatcommand("tpp", {
     description = S("List or visit the available Public Places."),
-    params = "[ |place] -- "..S("Without parameter will list all places."),
+    params = "[name_of_listed_place] -- "..S("Without parameter will list all places."),
     privs = {interact = true},
     func = tpp_view_or_visit
 })
 
-
-local places_file = minetest.get_modpath(minetest.get_current_modname()).."/tpp_places.lua"
+  -- for reloading the tpp places from file
+local places_file = core.get_modpath(core.get_current_modname()).."/tpp_places.lua"
 local function load_tp_places()
     tpp_places = {}
     tpp_places = dofile(places_file)
 end
 load_tp_places()
 
-minetest.register_chatcommand("tpp_reload", {
+core.register_chatcommand("tpp_reload", {
     description = S("Reload Public Places from file."),
     params = "",
     privs = {server = true},
@@ -352,16 +356,15 @@ minetest.register_chatcommand("tpp_reload", {
 })
 
 
-  -- other
-
-minetest.register_on_leaveplayer(function(player)
+  -- for a temporary persistence of a player's dnd blocks
+core.register_on_leaveplayer(function(player)
     local name = player:get_player_name()
     if tp_data[name] then
         tp_data[name].timestamp = os.time()
     end
 end)
 
-
+  -- randomized interval to avoid queueing simultaneous 1-hr after timers
 local int = math.random(3500, 3800)
 local function purge_offline()
     local time_past = os.time() + int
@@ -372,6 +375,6 @@ local function purge_offline()
             end
         end
     end
-    minetest.after(int, purge_offline)
+    core.after(int, purge_offline)
 end
-minetest.after(int, purge_offline)
+core.after(int, purge_offline)

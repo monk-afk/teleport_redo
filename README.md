@@ -1,45 +1,84 @@
 Teleport Redo
 =============
 
-Teleport chat commands for players.
+Chat commands for requesting teleport to another player or for another player to come to you.
+
+Includes a "Do-not-disturb" command to manage receiving requests from individuals or everyone.
+
+Also includes a "Teleport Public Places" command.
 
 ___
 
 ## Commands
 
-- Request teleport to player:
+### Player to Player
+
+- Request teleporting to player:
 
   `/tpr <playername>`
 
-- Request player teleport to you:
+- Request another player to teleport to you:
 
   `/tphr <playername>`
 
-- Accept or deny teleport request:
+- Accept  teleport request:
 
-  `/tpy` or `/tpn`
+  `/tpy`
 
-- Toggle 'Do not disturb' from everyone or individuals
+- Deny teleport request:
 
-  `/tpdnd` or `/tpdnd player_name`
+  `/tpn`
 
-- Show or clear your 'Do not disturb' list:
+### Do Not Disturb
 
-  `/tpdnd !show` or `/tpdnd !clear`
+- Toggle receiving teleport requests from everyone
 
-- Show or travel to available Public Places:
+  `/tpdnd`
+  
+- Toggle receiving teleport requests from an individuals
 
-  `/tpp` or `/tpp place_name`
+  `/tpdnd player_name`
+
+- Show your 'Do not disturb' list:
+
+  `/tpdnd !show`
+
+- Clear your 'Do not disturb' list:
+
+  `/tpdnd !clear`
+
+### Teleport Public Place
+
+- Show the list of available Public Teleport locations:
+
+  `/tpp` 
+
+- Travel to one of the listed `tpp` locations:
+
+  `/tpp place_name`
 
 - Reload places from file:
 
   `/tpp_reload`
 
+**Adding new `tpp` positions must be added to the `tpp_places.lua` file, then reloaded via command.**
+
+The keys become the command parameter. For example, to add a new area called "mine-10k" add the key and position to `tpp_places.lua`:
+
+```lua
+return {
+  template = {x = 0, y = 0, z = 0},
+  -- because of the dash (-) symbol we enclose the key
+  ["mine-10k"] = {x = 0, y = -10000, z = 0},
+}
+```
+
+Once that's done, use the in-game command `/tpp_reload` to apply the changes made.
+
+The management of tpp places may change in a future release.
 
 ___
 
-(c) 2024 monk MIT
+MIT (c) 2024-2025 monk, Discord ID:699370563235479624
 
-Current Version **`0.0.2`**
-
-<sup>Discord monk.moe (ID:699370563235479624)</sup>
+Current Version **`0.0.3`**
